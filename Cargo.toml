@@ -1,0 +1,11 @@
+[package]
+name = "gameboard"
+version = "0.1.0"
+description = "A library to create game board for text UI games."
+readme = "README.md"
+license = "MIT"
+authors = ["Timur Shaykhiev <tshaykhiev@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+termion = "1.5.1"
