@@ -1,8 +1,8 @@
-use termion::{clear, cursor, style};
+use termion::{cursor};
 
 use crate::chars;
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub enum InfoLayout {
     Left = 0,
     Right,
@@ -36,7 +36,7 @@ impl Info {
     }
 
     pub(crate) fn get_layout(&self) -> InfoLayout {
-        self.layout.clone()
+        self.layout
     }
 
     pub(crate) fn set_position_and_size(&mut self, x: u16, y: u16, w: u16, h: u16) {
@@ -52,38 +52,32 @@ impl Info {
         let mut s = String::with_capacity((self.width as usize + 16) * self.height as usize);
 
         s.push_str(&format!(
-            "{}{}",
+            "{}{}{}{}{}",
             cursor::Goto(self.x, y),
-            chars::DOUBLE_BORDER_TOP_LEFT
-        ));
-        for _ in 1..self.width - 1 {
-            s.push_str(&format!("{}", chars::DOUBLE_BORDER_HOR_LINE));
-        }
-        y += 1;
-        s.push_str(&format!(
-            "{}{}",
+            chars::DOUBLE_BORDER_TOP_LEFT,
+            chars::DOUBLE_BORDER_HOR_LINE.repeat(self.width as usize - 2),
             chars::DOUBLE_BORDER_TOP_RIGHT,
-            cursor::Goto(self.x, y)
+            cursor::Goto(self.x, y + 1)
         ));
+        y += 1;
 
         for _ in 1..self.height - 1 {
-            s.push_str(&format!("{}", chars::DOUBLE_BORDER_VERT_LINE));
-            for _ in 1..self.width - 1 {
-                s.push_str("x");
-            }
-            y += 1;
             s.push_str(&format!(
-                "{}{}",
+                "{}{}{}{}",
                 chars::DOUBLE_BORDER_VERT_LINE,
-                cursor::Goto(self.x, y)
+                cursor::Goto(self.x + self.width - 1, y),
+                chars::DOUBLE_BORDER_VERT_LINE,
+                cursor::Goto(self.x, y + 1),
             ));
+            y += 1;
         }
 
-        s.push_str(&format!("{}", chars::DOUBLE_BORDER_BOTTOM_LEFT));
-        for _ in 1..self.width - 1 {
-            s.push_str(&format!("{}", chars::DOUBLE_BORDER_HOR_LINE));
-        }
-        s.push_str(&format!("{}", chars::DOUBLE_BORDER_BOTTOM_RIGHT));
+        s.push_str(&format!(
+            "{}{}{}",
+            chars::DOUBLE_BORDER_BOTTOM_LEFT,
+            chars::DOUBLE_BORDER_HOR_LINE.repeat(self.width as usize - 2),
+            chars::DOUBLE_BORDER_BOTTOM_RIGHT
+        ));
         s
     }
 }

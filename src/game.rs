@@ -8,7 +8,7 @@ use crate::info::{Info, InfoLayout};
 const SCREEN_TOP: u16 = 1;
 const SCREEN_LEFT: u16 = 1;
 
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone)]
 pub enum GameState {
     Created = 0,
     Initialized,
@@ -132,6 +132,6 @@ impl<R: Read, W: Write> Game<R, W> {
     }
 
     pub fn get_state(&self) -> GameState {
-        self.state.clone()
+        self.state
     }
 }
