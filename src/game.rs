@@ -1,6 +1,10 @@
 use std::io::{Read, Write};
 
-use termion::{clear, cursor, style};
+use termion::raw::{IntoRawMode, RawTerminal};
+use termion::screen::AlternateScreen;
+use termion::input::{TermRead, Keys};
+use termion::{cursor};
+use termion::event::Key;
 
 use crate::board::Board;
 use crate::info::{Info, InfoLayout};
@@ -17,39 +21,36 @@ pub enum GameState {
     Stopped,
 }
 
-pub struct Game<R, W: Write> {
+pub struct Game<R: Read, W: Write> {
     board: Option<Board>,
     info: Option<Info>,
     state: GameState,
-    input: R,
+    input: Keys<R>,
     output: W,
 }
 
-impl<R, W: Write> Drop for Game<R, W> {
+impl<R: Read, W: Write> Drop for Game<R, W> {
     fn drop(&mut self) {
-        // Restore terminal defaults.
-        write!(
-            self.output,
-            "{}{}{}",
-            clear::All,
-            style::Reset,
-            cursor::Goto(1, 1)
-        )
-        .unwrap();
+        write!(self.output, "{}", cursor::Show).unwrap();
     }
 }
 
-impl<R: Read, W: Write> Game<R, W> {
-    pub fn new(output: W, input: R) -> Game<R, W> {
+impl<R: Read, W: Write> Game<R, AlternateScreen<RawTerminal<W>>> {
+    pub fn new(input: R, output: W) -> Self {
+        let mut alt_screen = AlternateScreen::from(output.into_raw_mode().unwrap());
+        write!(alt_screen, "{}", cursor::Hide).unwrap();
+
         Game {
-            output,
-            input,
+            input: input.keys(),
+            output: alt_screen,
             board: None,
             info: None,
             state: GameState::Created,
         }
     }
+}
 
+impl<R: Read, W: Write> Game<R, W> {
     pub fn init(&mut self, board: Board, info: Option<Info>) {
         if self.state != GameState::Created && self.state != GameState::Stopped {
             panic!("You can initialize new or stopped game only.");
@@ -59,7 +60,6 @@ impl<R: Read, W: Write> Game<R, W> {
         self.layout();
 
         // Print initial screen
-        write!(self.output, "{}", clear::All).unwrap();
         if let Some(ref board) = self.board {
             self.output.write(board.get_content().as_bytes()).unwrap();
         }
@@ -108,6 +108,20 @@ impl<R: Read, W: Write> Game<R, W> {
             panic!("You can start initialized or stopped game only.");
         }
         self.state = GameState::Started;
+
+        loop {
+            let key = match self.input.next() {
+                None => break,
+                Some(res) => match res {
+                    Err(_) => continue,
+                    Ok(c) => c
+                }
+            };
+            match key {
+                Key::Char('q') => break,
+                _ => {}
+            }
+        }
     }
 
     pub fn stop(&mut self) {
