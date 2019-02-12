@@ -2,7 +2,7 @@
 //!
 
 pub use board::Board;
-pub use game::{Game, GameState};
+pub use game::{Game, GameState, InputListener};
 pub use info::{Info, InfoLayout};
 
 pub mod board;

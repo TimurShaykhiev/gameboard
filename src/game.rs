@@ -1,4 +1,6 @@
 use std::io::{Read, Write};
+use std::cell::RefCell;
+use std::rc::{Rc, Weak};
 
 use termion::raw::{IntoRawMode, RawTerminal};
 use termion::screen::AlternateScreen;
@@ -21,28 +23,40 @@ pub enum GameState {
     Stopped,
 }
 
-pub struct Game<R: Read, W: Write> {
+pub trait InputListener<R: Read, W: Write>
+    where Self: Sized {
+    fn handle_key(&mut self, key: Key, game: &mut Game<R, W, Self>);
+}
+
+pub struct Game<R: Read, W: Write, L: InputListener<R, W>> {
     board: Option<Board>,
     info: Option<Info>,
     state: GameState,
     input: Keys<R>,
     output: W,
+    listener: Weak<RefCell<L>>,
 }
 
-impl<R: Read, W: Write> Drop for Game<R, W> {
+
+impl<R: Read, W: Write, L: InputListener<R, W>> Drop for Game<R, W, L> {
     fn drop(&mut self) {
         write!(self.output, "{}", cursor::Show).unwrap();
+        self.output.flush().unwrap();
     }
 }
 
-impl<R: Read, W: Write> Game<R, AlternateScreen<RawTerminal<W>>> {
-    pub fn new(input: R, output: W) -> Self {
+impl<R: Read, W: Write, L> Game<R, AlternateScreen<RawTerminal<W>>, L>
+    where L: InputListener<R, AlternateScreen<RawTerminal<W>>> {
+
+    pub fn new(input: R, output: W, listener: Rc<RefCell<L>>) -> Self {
         let mut alt_screen = AlternateScreen::from(output.into_raw_mode().unwrap());
         write!(alt_screen, "{}", cursor::Hide).unwrap();
+        alt_screen.flush().unwrap();
 
         Game {
             input: input.keys(),
             output: alt_screen,
+            listener: Rc::downgrade(&listener),
             board: None,
             info: None,
             state: GameState::Created,
@@ -50,7 +64,7 @@ impl<R: Read, W: Write> Game<R, AlternateScreen<RawTerminal<W>>> {
     }
 }
 
-impl<R: Read, W: Write> Game<R, W> {
+impl<R: Read, W: Write, L: InputListener<R, W>> Game<R, W, L> {
     pub fn init(&mut self, board: Board, info: Option<Info>) {
         if self.state != GameState::Created && self.state != GameState::Stopped {
             panic!("You can initialize new or stopped game only.");
@@ -109,19 +123,23 @@ impl<R: Read, W: Write> Game<R, W> {
         }
         self.state = GameState::Started;
 
-        loop {
-            let key = match self.input.next() {
-                None => break,
-                Some(res) => match res {
-                    Err(_) => continue,
-                    Ok(c) => c
+        if let Some(listener) = self.listener.upgrade() {
+            while self.state == GameState::Started {
+                let key = match self.input.next() {
+                    None => break,
+                    Some(res) => match res {
+                        Err(_) => continue,
+                        Ok(c) => c
+                    }
+                };
+                match key {
+                    Key::Char(_) => listener.borrow_mut().handle_key(key, self),
+                    _ => {}
                 }
-            };
-            match key {
-                Key::Char('q') => break,
-                _ => {}
             }
-        }
+        } else {
+            panic!("You cannot start game without listener. Listener was dropped.");
+        };
     }
 
     pub fn stop(&mut self) {
