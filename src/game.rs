@@ -35,6 +35,7 @@ pub struct Game<R: Read, W: Write, L: InputListener<R, W>> {
     input: Keys<R>,
     output: W,
     listener: Weak<RefCell<L>>,
+    resume_key: Option<Key>
 }
 
 
@@ -60,6 +61,7 @@ impl<R: Read, W: Write, L> Game<R, AlternateScreen<RawTerminal<W>>, L>
             board: None,
             info: None,
             state: GameState::Created,
+            resume_key: None
         }
     }
 }
@@ -124,7 +126,7 @@ impl<R: Read, W: Write, L: InputListener<R, W>> Game<R, W, L> {
         self.state = GameState::Started;
 
         if let Some(listener) = self.listener.upgrade() {
-            while self.state == GameState::Started {
+            while self.state == GameState::Started || self.state == GameState::Paused {
                 let key = match self.input.next() {
                     None => break,
                     Some(res) => match res {
@@ -132,9 +134,19 @@ impl<R: Read, W: Write, L: InputListener<R, W>> Game<R, W, L> {
                         Ok(c) => c
                     }
                 };
-                match key {
-                    Key::Char(_) => listener.borrow_mut().handle_key(key, self),
-                    _ => {}
+                if self.state == GameState::Paused {
+                    if let Some(resume_key) = self.resume_key {
+                        if key == resume_key {
+                            // In 'Paused' state we call key handler only if resume key is
+                            // pressed. User should call resume().
+                            listener.borrow_mut().handle_key(key, self);
+                        }
+                    }
+                } else {
+                    match key {
+                        Key::Char(_) => listener.borrow_mut().handle_key(key, self),
+                        _ => {}
+                    }
                 }
             }
         } else {
@@ -149,10 +161,11 @@ impl<R: Read, W: Write, L: InputListener<R, W>> Game<R, W, L> {
         self.state = GameState::Stopped;
     }
 
-    pub fn pause(&mut self) {
+    pub fn pause(&mut self, resume_key: Key) {
         if self.state != GameState::Started {
             panic!("You can pause started game only.");
         }
+        self.resume_key = Some(resume_key);
         self.state = GameState::Paused;
     }
 
@@ -160,6 +173,7 @@ impl<R: Read, W: Write, L: InputListener<R, W>> Game<R, W, L> {
         if self.state != GameState::Paused {
             panic!("You can resume paused game only.");
         }
+        self.resume_key = None;
         self.state = GameState::Started;
     }
 

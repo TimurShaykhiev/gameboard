@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use termion::event::Key;
 
-use gameboard::{Board, Game, InputListener};
+use gameboard::{Board, Game, GameState, InputListener};
 
 struct App {
 }
@@ -13,6 +13,14 @@ impl<R: Read, W: Write> InputListener<R, W> for App {
     fn handle_key(&mut self, key: Key, game: &mut Game<R, W, Self>) {
         match key {
             Key::Char('q') => game.stop(),
+            Key::Char('p') => {
+                let state = game.get_state();
+                if state == GameState::Started {
+                    game.pause(Key::Char('p'));
+                } else if state == GameState::Paused {
+                    game.resume();
+                }
+            },
             _ => {}
         }
     }
