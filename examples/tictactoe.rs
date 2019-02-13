@@ -1,10 +1,18 @@
 use std::io::{self, Read, Write};
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::collections::HashMap;
 
 use termion::event::Key;
 
-use gameboard::{Board, Game, GameState, InputListener};
+use gameboard::{Board, ResourceTable, Cell, Game, GameState, InputListener};
+
+fn create_resources() -> ResourceTable {
+    let mut res = HashMap::new();
+    res.insert(0, String::from("    OOO      O   O    O     O    O   O      OOO   "));
+    res.insert(1, String::from("   X   X      X X        X        X X      X   X  "));
+    res
+}
 
 struct App {
 }
@@ -40,7 +48,11 @@ fn main() {
 
     let app = Rc::new(RefCell::new(App::new()));
 
-    let board = Board::new(3, 3, 10, 5, true);
+    let mut board = Board::new(3, 3, 10, 5, true, Some(create_resources()));
+    board.init_from_vec(&vec![Cell::ResourceId(0), Cell::ResourceId(1), Cell::Empty,
+                              Cell::Empty, Cell::ResourceId(1), Cell::Empty,
+                              Cell::Char('a'), Cell::Empty, Cell::ResourceId(0)]);
+
     let game = Rc::new(RefCell::new(Game::new(stdin, stdout, Rc::clone(&app))));
     game.borrow_mut().init(board, None);
     game.borrow_mut().start();

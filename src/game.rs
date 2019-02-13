@@ -66,6 +66,26 @@ impl<R: Read, W: Write, L> Game<R, AlternateScreen<RawTerminal<W>>, L>
     }
 }
 
+impl<R: Read, W: Write, L> Game<R, RawTerminal<W>, L>
+    where L: InputListener<R, RawTerminal<W>> {
+
+    pub fn new_dbg(input: R, output: W, listener: Rc<RefCell<L>>) -> Self {
+        let mut screen = output.into_raw_mode().unwrap();
+        write!(screen, "{}", cursor::Hide).unwrap();
+        screen.flush().unwrap();
+
+        Game {
+            input: input.keys(),
+            output: screen,
+            listener: Rc::downgrade(&listener),
+            board: None,
+            info: None,
+            state: GameState::Created,
+            resume_key: None
+        }
+    }
+}
+
 impl<R: Read, W: Write, L: InputListener<R, W>> Game<R, W, L> {
     pub fn init(&mut self, board: Board, info: Option<Info>) {
         if self.state != GameState::Created && self.state != GameState::Stopped {
@@ -143,10 +163,7 @@ impl<R: Read, W: Write, L: InputListener<R, W>> Game<R, W, L> {
                         }
                     }
                 } else {
-                    match key {
-                        Key::Char(_) => listener.borrow_mut().handle_key(key, self),
-                        _ => {}
-                    }
+                    listener.borrow_mut().handle_key(key, self);
                 }
             }
         } else {
