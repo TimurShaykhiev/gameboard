@@ -8,11 +8,11 @@ use termion::input::{TermRead, Keys};
 use termion::{cursor};
 use termion::event::Key;
 
-use crate::board::Board;
+use crate::board::{Board, CellUpdates};
 use crate::info::{Info, InfoLayout};
 
-const SCREEN_TOP: u16 = 1;
-const SCREEN_LEFT: u16 = 1;
+const SCREEN_TOP: usize = 1;
+const SCREEN_LEFT: usize = 1;
 
 #[derive(PartialEq, Eq, Copy, Clone)]
 pub enum GameState {
@@ -96,11 +96,17 @@ impl<R: Read, W: Write, L: InputListener<R, W>> Game<R, W, L> {
         self.layout();
 
         // Print initial screen
-        if let Some(ref board) = self.board {
-            self.output.write(board.get_content().as_bytes()).unwrap();
+        if let Some(ref mut board) = self.board {
+            self.output.write(board.get_border().as_bytes()).unwrap();
+            if let Some(updates) = board.get_updates() {
+                self.output.write(updates.as_bytes()).unwrap();
+            }
         }
         if let Some(ref info) = self.info {
-            self.output.write(info.get_content().as_bytes()).unwrap();
+            self.output.write(info.get_border().as_bytes()).unwrap();
+            if let Some(updates) = info.get_updates() {
+                self.output.write(updates.as_bytes()).unwrap();
+            }
         }
         self.output.flush().unwrap();
 
@@ -196,5 +202,11 @@ impl<R: Read, W: Write, L: InputListener<R, W>> Game<R, W, L> {
 
     pub fn get_state(&self) -> GameState {
         self.state
+    }
+
+    pub fn update_cells(&mut self, updates: CellUpdates) {
+        if let Some(ref mut board) = self.board {
+            board.update_cells(updates);
+        }
     }
 }

@@ -4,13 +4,19 @@ use std::rc::Rc;
 use std::collections::HashMap;
 
 use termion::event::Key;
+use termion::color;
 
 use gameboard::{Board, ResourceTable, Cell, Game, GameState, InputListener};
 
+const SIGN_O: &'static str = "    OOO      O   O    O     O    O   O      OOO   ";
+const SIGN_X: &'static str = "   X   X      X X        X        X X      X   X  ";
+
 fn create_resources() -> ResourceTable {
     let mut res = HashMap::new();
-    res.insert(0, String::from("    OOO      O   O    O     O    O   O      OOO   "));
-    res.insert(1, String::from("   X   X      X X        X        X X      X   X  "));
+    res.insert(0, String::from(SIGN_O));
+    res.insert(1, String::from(SIGN_X));
+    res.insert(2, format!("{}{}", color::Fg(color::LightYellow), SIGN_O));
+    res.insert(3, format!("{}{}", color::Fg(color::LightYellow), SIGN_X));
     res
 }
 
@@ -49,9 +55,9 @@ fn main() {
     let app = Rc::new(RefCell::new(App::new()));
 
     let mut board = Board::new(3, 3, 10, 5, true, Some(create_resources()));
-    board.init_from_vec(&vec![Cell::ResourceId(0), Cell::ResourceId(1), Cell::Empty,
+    board.init_from_vec(&vec![Cell::ResourceId(0), Cell::ResourceId(2), Cell::Empty,
                               Cell::Empty, Cell::ResourceId(1), Cell::Empty,
-                              Cell::Char('a'), Cell::Empty, Cell::ResourceId(0)]);
+                              Cell::Char('a'), Cell::Empty, Cell::ResourceId(1)]);
 
     let game = Rc::new(RefCell::new(Game::new(stdin, stdout, Rc::clone(&app))));
     game.borrow_mut().init(board, None);
