@@ -10,9 +10,13 @@ use termion::event::Key;
 
 use crate::board::{Board, CellUpdates};
 use crate::info::{Info, InfoLayout};
+use crate::cursor::KeyHandleResult;
 
 const SCREEN_TOP: usize = 1;
 const SCREEN_LEFT: usize = 1;
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub struct Position(pub usize, pub usize);
 
 #[derive(PartialEq, Eq, Copy, Clone)]
 pub enum GameState {
@@ -26,6 +30,7 @@ pub enum GameState {
 pub trait InputListener<R: Read, W: Write>
     where Self: Sized {
     fn handle_key(&mut self, key: Key, game: &mut Game<R, W, Self>);
+    fn cursor_moved(&mut self, _position: Position, _game: &mut Game<R, W, Self>) {}
 }
 
 pub struct Game<R: Read, W: Write, L: InputListener<R, W>> {
@@ -137,10 +142,10 @@ impl<R: Read, W: Write, L: InputListener<R, W>> Game<R, W, L> {
                         (SCREEN_LEFT, SCREEN_TOP, SCREEN_LEFT, b_h + 1)
                     }
                 };
-                board.set_position(b_x, b_y);
-                info.set_position_and_size(i_x, i_y, i_w, i_h);
+                board.set_position(Position(b_x, b_y));
+                info.set_position_and_size(Position(i_x, i_y), i_w, i_h);
             } else {
-                board.set_position(SCREEN_LEFT, SCREEN_TOP);
+                board.set_position(Position(SCREEN_LEFT, SCREEN_TOP));
             };
         }
     }
@@ -169,8 +174,31 @@ impl<R: Read, W: Write, L: InputListener<R, W>> Game<R, W, L> {
                         }
                     }
                 } else {
-                    listener.borrow_mut().handle_key(key, self);
+                    if let Some(ref mut board) = self.board {
+                        // We pass key to board first. If board has cursor, it'll try to handle
+                        // cursor movement and return new cursor position. Otherwise, user key
+                        // handler will be called.
+                        match board.handle_key(key) {
+                            KeyHandleResult::NotHandled =>
+                                listener.borrow_mut().handle_key(key, self),
+                            KeyHandleResult::NewPosition(pos) =>
+                                listener.borrow_mut().cursor_moved(pos, self),
+                            KeyHandleResult::Consumed => {},
+                        }
+                    }
                 }
+                // Update screen.
+                if let Some(ref mut board) = self.board {
+                    if let Some(updates) = board.get_updates() {
+                        self.output.write(updates.as_bytes()).unwrap();
+                    }
+                }
+                if let Some(ref info) = self.info {
+                    if let Some(updates) = info.get_updates() {
+                        self.output.write(updates.as_bytes()).unwrap();
+                    }
+                }
+                self.output.flush().unwrap();
             }
         } else {
             panic!("You cannot start game without listener. Listener was dropped.");

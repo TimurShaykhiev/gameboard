@@ -1,16 +1,20 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
-use termion::{cursor};
+use termion::cursor;
+use termion::event::Key;
 
+use crate::game::Position;
 use crate::chars;
 use crate::cell::Cell;
+use crate::cell_grid::CellGrid;
+use crate::cursor::{Cursor, KeyHandleResult};
 
 pub type ResourceTable = HashMap<u16, String>;
-pub type CellUpdates = Vec<(Cell, usize, usize)>;
+pub type CellUpdates = Vec<(Cell, Position)>;
 
 pub struct Board {
-    x: usize,
-    y: usize,
+    position: Position,
     width: usize,
     height: usize,
     rows: usize,
@@ -18,15 +22,14 @@ pub struct Board {
     cell_width: usize,
     cell_height: usize,
     cell_borders: bool,
-    cells: Vec<Cell>,
-    resources: Option<ResourceTable>,
-    update_all: bool,
-    updates: Vec<usize>,
+    grid: CellGrid,
+    resources: Rc<Option<ResourceTable>>,
+    cursor: Option<Cursor>,
 }
 
 impl Board {
     pub fn new(width: usize, height: usize, cell_width: usize, cell_height: usize,
-               cell_borders: bool, resources: Option<ResourceTable>) -> Board {
+               cell_borders: bool, resources: Option<ResourceTable>) -> Self {
         let mut w_borders = 2;
         let mut h_borders = 2;
         if cell_borders {
@@ -36,9 +39,11 @@ impl Board {
         let w = width * cell_width + w_borders;
         let h = height * cell_height + h_borders;
 
+        let res_table = Rc::new(resources);
+        let grid = CellGrid::new(width, height, cell_width, cell_height, Rc::clone(&res_table));
+
         Board {
-            x: 1,
-            y: 1,
+            position: Position(1, 1),
             width: w,
             height: h,
             rows: height,
@@ -46,37 +51,36 @@ impl Board {
             cell_width,
             cell_height,
             cell_borders,
-            cells: vec![Cell::Empty; width * height],
-            resources,
-            update_all: true,
-            updates: vec![],
+            grid,
+            resources: Rc::clone(&res_table),
+            cursor: None,
         }
     }
 
-    pub fn reset(&mut self) {
-        self.cells = vec![Cell::Empty; self.rows * self.columns];
-        self.update_all = true;
-    }
-
-    pub fn init_from_vec(&mut self, cells: &Vec<Cell>) {
+    pub fn init_from_vec(&mut self, cells: &Vec<Cell>, cursor: Option<Cursor>) {
         if cells.len() != self.rows * self.columns {
             panic!("Invalid number of cells.");
         }
-        self.cells = cells.clone();
-        self.update_all = true;
+        self.grid.init_from_vec(cells);
+        self.add_cursor(cursor);
     }
 
-    pub fn init_from_str(&mut self, cells: &str) {
+    pub fn init_from_str(&mut self, cells: &str, cursor: Option<Cursor>) {
         if cells.len() != self.rows * self.columns {
             panic!("Invalid number of cells.");
         }
         if self.cell_width != 1 && self.cell_height != 1 {
             panic!("You can initialize cells from string for board with 1x1 cells only.");
         }
-        for (i, ch) in cells.chars().enumerate() {
-            self.cells[i] = Cell::Char(ch);
+        self.grid.init_from_str(cells);
+        self.add_cursor(cursor);
+    }
+
+    fn add_cursor(&mut self, cursor: Option<Cursor>) {
+        if let Some(mut cur) = cursor {
+            cur.init(self.rows, self.columns, &mut self.grid);
+            self.cursor = Some(cur);
         }
-        self.update_all = true;
     }
 
     pub(crate) fn get_width(&self) -> usize {
@@ -87,18 +91,17 @@ impl Board {
         self.height
     }
 
-    pub(crate) fn set_position(&mut self, x: usize, y: usize) {
-        self.x = x;
-        self.y = y;
+    pub(crate) fn set_position(&mut self, pos: Position) {
+        self.position = pos;
     }
 
     pub(crate) fn get_border(&self) -> String {
-        let mut y = self.y as u16;
+        let mut y = self.position.1 as u16;
         // Add 16 chars to row width for Goto sequences
         let mut res = String::with_capacity((self.width + 16) * self.height);
 
         for h in 0..self.height {
-            res.push_str(&format!("{}", cursor::Goto(self.x as u16, y)));
+            res.push_str(&format!("{}", cursor::Goto(self.position.0 as u16, y)));
             for w in 0..self.width {
                 match self.get_border_char(w, h) {
                     Some(border_ch) => {
@@ -115,52 +118,51 @@ impl Board {
     }
 
     pub(crate) fn get_updates(&mut self) -> Option<String> {
-        if !self.update_all && self.updates.len() == 0 {
+        if !self.grid.has_updates() {
             return None
         }
-        let update_all = self.update_all;
-        let capacity;
-        if self.update_all {
-            self.update_all = false;
-            capacity = self.width * self.height * 2;
-        } else {
-            capacity = self.updates.len() * self.cell_width * self.cell_height * 2;
-        }
-        let mut res = String::with_capacity(capacity);
 
-        if update_all && self.cell_width == 1 && self.cell_height == 1 && !self.cell_borders {
+        let mut res = String::with_capacity(self.width * self.height);
+
+        if self.grid.need_update_all() && self.cell_width == 1 && self.cell_height == 1 &&
+            !self.cell_borders {
             // If we need to update all cells and board has 1x1 cells and no borders,
             // we can simplify the process.
-            for cell in &self.cells {
-                cell.add_value_to_str(&mut res, self.resources.as_ref());
+            for cell in self.grid.iter() {
+                cell.add_value_to_str(&mut res, Rc::clone(&self.resources));
             }
-        } else if update_all {
-            for (i, cell) in (&self.cells).iter().enumerate() {
+        } else if self.grid.need_update_all() {
+            for (i, cell) in self.grid.iter().enumerate() {
                 let (x, y) = self.get_cell_top_left(i);
                 res.push_str(
                     &cell.get_content(self.cell_width, self.cell_height, x, y,
-                                      self.resources.as_ref())
+                                      Rc::clone(&self.resources))
                 );
             }
         } else {
-            for pos in &self.updates {
-                let (x, y) = self.get_cell_top_left(*pos);
-                let cell = &self.cells[*pos];
+            for (cell, pos) in self.grid.updated_iter() {
+                let (x, y) = self.get_cell_top_left(pos);
                 res.push_str(
                     &cell.get_content(self.cell_width, self.cell_height, x, y,
-                                      self.resources.as_ref())
+                                      Rc::clone(&self.resources))
                 );
             }
         }
-        self.updates = vec![];
+        self.grid.update_complete();
         Some(res)
     }
 
     pub(crate) fn update_cells(&mut self, updates: CellUpdates) {
-        for (cell, x, y) in updates {
-            let pos = self.get_cell_pos(x, y);
-            self.cells[pos] = cell.clone();
-            self.updates.push(pos);
+        self.grid.update_cells(&updates);
+        if let Some(ref mut cursor) = self.cursor {
+            cursor.check_updates(&updates, &mut self.grid)
+        }
+    }
+
+    pub(crate) fn handle_key(&mut self, key: Key) -> KeyHandleResult {
+        match self.cursor {
+            Some(ref mut cursor) => cursor.handle_key(key, &mut self.grid),
+            None => KeyHandleResult::NotHandled
         }
     }
 
@@ -215,13 +217,9 @@ impl Board {
         }
     }
 
-    fn get_cell_pos(&self, x: usize, y: usize) -> usize {
-        y * self.columns + x
-    }
-
     fn get_cell_top_left(&self, pos: usize) -> (u16, u16) {
-        let start_x = self.x + 1;
-        let start_y = self.y + 1;
+        let start_x = self.position.0 + 1;
+        let start_y = self.position.1 + 1;
         let step_x = if self.cell_borders {
             self.cell_width + 1
         } else {

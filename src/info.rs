@@ -1,6 +1,7 @@
 use termion::{cursor};
 
 use crate::chars;
+use crate::game::Position;
 
 #[derive(Copy, Clone)]
 pub enum InfoLayout {
@@ -11,8 +12,7 @@ pub enum InfoLayout {
 }
 
 pub struct Info {
-    x: usize,
-    y: usize,
+    position: Position,
     width: usize,
     height: usize,
     size: usize,
@@ -20,10 +20,9 @@ pub struct Info {
 }
 
 impl Info {
-    pub fn new(size: usize, layout: InfoLayout) -> Info {
+    pub fn new(size: usize, layout: InfoLayout) -> Self {
         Info {
-            x: 1,
-            y: 1,
+            position: Position(1, 1),
             width: 1,
             height: 1,
             size: size + 2, // add borders
@@ -39,16 +38,15 @@ impl Info {
         self.layout
     }
 
-    pub(crate) fn set_position_and_size(&mut self, x: usize, y: usize, w: usize, h: usize) {
-        self.x = x;
-        self.y = y;
+    pub(crate) fn set_position_and_size(&mut self, pos: Position, w: usize, h: usize) {
+        self.position = pos;
         self.width = w;
         self.height = h;
     }
 
     pub(crate) fn get_border(&self) -> String {
-        let x = self.x as u16;
-        let mut y = self.y as u16;
+        let x = self.position.0 as u16;
+        let mut y = self.position.1 as u16;
         // Add 16 chars to row width for Goto sequences
         let mut res = String::with_capacity((self.width + 16) * self.height);
 

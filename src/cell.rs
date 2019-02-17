@@ -1,6 +1,11 @@
+use std::rc::Rc;
+
+use termion::{style, cursor, color};
+
 use crate::board::ResourceTable;
 
-use termion::{style, cursor};
+const RESOURCE_TABLE_ERR_MSG: &'static str =
+    "If you use Cell::ResourceId, you must add resource table to Board.";
 
 #[derive(Clone)]
 pub enum Cell {
@@ -12,16 +17,16 @@ pub enum Cell {
 
 impl Cell {
     pub(crate) fn add_value_to_str(&self, dst: &mut String,
-                                   resources: Option<&ResourceTable>) {
+                                   resources: Rc<Option<ResourceTable>>) {
         match self {
             Cell::Empty => dst.push(' '),
             Cell::Char(c) => dst.push(*c),
             Cell::ResourceId(id) => {
-                if let Some(ref rt) = resources {
+                if let Some(rt) = resources.as_ref() {
                     let content = &rt[id];
                     dst.push_str(&format!("{}{}", content, style::Reset));
                 } else {
-                    panic!("If you use Cell::ResourceId, you must add resource table to Board.");
+                    panic!(RESOURCE_TABLE_ERR_MSG);
                 }
             },
             Cell::Content(content) => dst.push_str(&format!("{}{}", content, style::Reset))
@@ -29,19 +34,41 @@ impl Cell {
     }
 
     pub(crate) fn get_content(&self, width: usize, height: usize, x: u16, y: u16,
-                              resources: Option<&ResourceTable>) -> String {
+                              resources: Rc<Option<ResourceTable>>) -> String {
         match self {
             Cell::Empty => Cell::prepare_str_from_char(' ', width, height, x, y),
             Cell::Char(c) => Cell::prepare_str_from_char(*c, width, height, x, y),
             Cell::ResourceId(id) => {
-                if let Some(ref rt) = resources {
+                if let Some(rt) = resources.as_ref() {
                     let content = &rt[id];
                     Cell::prepare_str(content, width, height, x, y)
                 } else {
-                    panic!("If you use Cell::ResourceId, you must add resource table to Board.");
+                    panic!(RESOURCE_TABLE_ERR_MSG);
                 }
             },
             Cell::Content(content) => Cell::prepare_str(content, width, height, x, y)
+        }
+    }
+
+    pub(crate) fn with_bg_color(&self, width: usize, height: usize,
+                                resources: Rc<Option<ResourceTable>>,
+                                bg_color: color::Rgb) -> Cell {
+        match self {
+            Cell::Empty =>
+                Cell::Content(
+                    format!("{}{}", color::Bg(bg_color), ' '.to_string().repeat(width * height))),
+            Cell::Char(c) =>
+                Cell::Content(
+                    format!("{}{}", color::Bg(bg_color), (*c).to_string().repeat(width * height))),
+            Cell::ResourceId(id) => {
+                if let Some(rt) = resources.as_ref() {
+                    let content = &rt[id];
+                    Cell::Content(format!("{}{}", color::Bg(bg_color), content))
+                } else {
+                    panic!(RESOURCE_TABLE_ERR_MSG);
+                }
+            },
+            Cell::Content(content) => Cell::Content(format!("{}{}", color::Bg(bg_color), content))
         }
     }
 
