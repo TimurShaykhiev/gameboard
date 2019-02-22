@@ -9,9 +9,16 @@ use gameboard::{Board, ResourceTable, Cell, Game, InputListener, Cursor, Positio
                 CellUpdates};
 
 const START_POSITION: Position = Position(1, 1);
+
 const CELL_EMPTY: u8 = 0;
 const CELL_X: u8 = 1;
 const CELL_O: u8 = 2;
+
+const TEXT_GAME_RESULT_WIN: &'static str = "|^|You win.";
+const TEXT_GAME_RESULT_LOSE: &'static str = "|^|You lose.";
+const TEXT_GAME_RESULT_DRAW: &'static str = "|^|Draw.";
+const TEXT_REPLAY: &'static str = "|^|Press 'r' to replay.";
+const TEXT_QUIT: &'static str = "|^|Press 'q' to quit.";
 
 fn create_resources() -> ResourceTable {
     let mut res = ResourceTable::new();
@@ -20,6 +27,7 @@ fn create_resources() -> ResourceTable {
     res
 }
 
+#[derive(PartialEq, Eq)]
 enum GameResult {
     Unknown = 0,
     HumanWin,
@@ -43,12 +51,31 @@ impl<R: Read, W: Write> InputListener<R, W> for App {
                 game.stop();
                 self.exit = true;
             },
+            Key::Char('r') => {
+                if self.result != GameResult::Unknown {
+                    // No need to call game.hide_message(), because after game stop
+                    // board will be recreated and redrawn anyway.
+                    game.stop();
+                }
+            },
             Key::Char('j') => {
                 if let Some(updates) = self.process_user_turn() {
                     game.update_cells(updates);
                 }
                 if self.game_over {
-                    game.stop();
+                    let game_res = if self.result == GameResult::HumanWin {
+                        TEXT_GAME_RESULT_WIN
+                    } else if self.result == GameResult::ComputerWin {
+                        TEXT_GAME_RESULT_LOSE
+                    } else {
+                        TEXT_GAME_RESULT_DRAW
+                    };
+                    game.show_message(&[
+                        game_res,
+                        "",
+                        TEXT_REPLAY,
+                        TEXT_QUIT,
+                    ]);
                 }
             },
             _ => {}
@@ -70,6 +97,14 @@ impl App {
             result: GameResult::Unknown,
             exit: false,
         }
+    }
+
+    fn reset(&mut self) {
+        self.cursor_position = START_POSITION;
+        self.board = [CELL_EMPTY; 9];
+        self.turn_num = 0;
+        self.game_over = false;
+        self.result = GameResult::Unknown;
     }
 
     fn process_user_turn(&mut self) -> Option<CellUpdates> {
@@ -275,18 +310,17 @@ fn main() {
     let stdout = stdout.lock();
 
     let app = Rc::new(RefCell::new(App::new()));
-
-    let cursor = Cursor::new(color::Rgb(0, 0, 200), START_POSITION, true, None);
-
-    let mut board = Board::new(3, 3, 10, 5, true, Some(create_resources()));
-    board.init_from_vec(&vec![Cell::Empty, Cell::Empty, Cell::Empty,
-                              Cell::Empty, Cell::Empty, Cell::Empty,
-                              Cell::Empty, Cell::Empty, Cell::Empty,],
-                        Some(cursor));
-
     let game = Rc::new(RefCell::new(Game::new(stdin, stdout, Rc::clone(&app))));
-    game.borrow_mut().init(board, None);
+
     while !app.borrow().exit {
+        app.borrow_mut().reset();
+        let cursor = Cursor::new(color::Rgb(0, 0, 200), START_POSITION, true, None);
+        let mut board = Board::new(3, 3, 10, 5, true, Some(create_resources()));
+        board.init_from_vec(&vec![Cell::Empty, Cell::Empty, Cell::Empty,
+                                  Cell::Empty, Cell::Empty, Cell::Empty,
+                                  Cell::Empty, Cell::Empty, Cell::Empty,],
+                            Some(cursor));
+        game.borrow_mut().init(board, None);
         game.borrow_mut().start();
     }
 }

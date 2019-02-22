@@ -10,6 +10,10 @@ use crate::cell::Cell;
 use crate::cell_grid::CellGrid;
 use crate::cursor::{Cursor, KeyHandleResult};
 
+const GOTO_SEQUENCE_WIDTH: usize = 16;
+const TEXT_ALIGN_CENTER: &'static str = "|^|";
+const TEXT_ALIGN_RIGHT: &'static str = "|>|";
+
 pub type ResourceTable = HashMap<u16, String>;
 pub type CellUpdates = Vec<(Cell, Position)>;
 
@@ -25,6 +29,8 @@ pub struct Board {
     grid: CellGrid,
     resources: Rc<Option<ResourceTable>>,
     cursor: Option<Cursor>,
+    message_lines: Option<Vec<String>>,
+    update_all: bool,
 }
 
 impl Board {
@@ -54,6 +60,8 @@ impl Board {
             grid,
             resources: Rc::clone(&res_table),
             cursor: None,
+            message_lines: None,
+            update_all: false,
         }
     }
 
@@ -97,8 +105,8 @@ impl Board {
 
     pub(crate) fn get_border(&self) -> String {
         let mut y = self.position.1 as u16;
-        // Add 16 chars to row width for Goto sequences
-        let mut res = String::with_capacity((self.width + 16) * self.height);
+        // Add chars to row width for Goto sequences
+        let mut res = String::with_capacity((self.width + GOTO_SEQUENCE_WIDTH) * self.height);
 
         for h in 0..self.height {
             res.push_str(&format!("{}", cursor::Goto(self.position.0 as u16, y)));
@@ -118,20 +126,30 @@ impl Board {
     }
 
     pub(crate) fn get_updates(&mut self) -> Option<String> {
-        if !self.grid.has_updates() {
+        let msg_dlg = self.get_message_dialog();
+        if msg_dlg.is_some() {
+            return msg_dlg
+        }
+
+        if !self.update_all && !self.grid.has_updates() {
             return None
         }
 
         let mut res = String::with_capacity(self.width * self.height);
+        let update_all = self.update_all || self.grid.need_update_all();
+        if self.update_all {
+            // We need to redraw the whole board with borders to wipe out message dialog.
+            res.push_str(&self.get_border());
+        }
 
-        if self.grid.need_update_all() && self.cell_width == 1 && self.cell_height == 1 &&
+        if update_all && self.cell_width == 1 && self.cell_height == 1 &&
             !self.cell_borders {
             // If we need to update all cells and board has 1x1 cells and no borders,
             // we can simplify the process.
             for cell in self.grid.iter() {
                 cell.add_value_to_str(&mut res, Rc::clone(&self.resources));
             }
-        } else if self.grid.need_update_all() {
+        } else if update_all {
             for (i, cell) in self.grid.iter().enumerate() {
                 let (x, y) = self.get_cell_top_left(i);
                 res.push_str(
@@ -149,10 +167,14 @@ impl Board {
             }
         }
         self.grid.update_complete();
+        self.update_all = false;
         Some(res)
     }
 
     pub(crate) fn update_cells(&mut self, updates: CellUpdates) {
+        if self.message_lines.is_some() {
+            panic!("You can't update cells while message is open. Use hide_message() to close it.");
+        }
         self.grid.update_cells(&updates);
         if let Some(ref mut cursor) = self.cursor {
             cursor.check_updates(&updates, &mut self.grid)
@@ -163,6 +185,95 @@ impl Board {
         match self.cursor {
             Some(ref mut cursor) => cursor.handle_key(key, &mut self.grid),
             None => KeyHandleResult::NotHandled
+        }
+    }
+
+    pub(crate) fn show_message(&mut self, lines: &[&str]) {
+        let mut v = Vec::with_capacity(lines.len());
+        for &l in lines {
+            v.push(String::from(l));
+        }
+        self.message_lines = Some(v);
+    }
+
+    pub(crate) fn hide_message(&mut self) {
+        self.message_lines = None;
+        self.update_all = true;
+    }
+
+    fn get_message_dialog(&self) -> Option<String> {
+        if let Some(ref msg_lines) = self.message_lines {
+            let line_max_len = msg_lines.iter().map(|x| x.len()).max()
+                    .expect("Message lines slice must not be empty.");
+            // We want to have at least 1 character margin between border and text.
+            // So 8 means: board border + margin + dialog border + margin, from both sides.
+            let dlg_w = line_max_len.min(self.width - 8) + 4;
+            let dlg_h = msg_lines.len().min(self.height - 8) + 4;
+            // Center dialog on the board.
+            let x = (self.position.0 + (self.width - dlg_w) / 2) as u16;
+            let mut y = (self.position.1 + (self.height - dlg_h) / 2) as u16;
+
+            let mut res = String::with_capacity((dlg_w + GOTO_SEQUENCE_WIDTH) * dlg_h);
+            res.push_str(&format!(
+                "{}{}{}{}{}{}{}{}{}",
+                cursor::Goto(x, y),
+                chars::DOUBLE_BORDER_TOP_LEFT,
+                chars::DOUBLE_BORDER_HOR_LINE.to_string().repeat(dlg_w - 2),
+                chars::DOUBLE_BORDER_TOP_RIGHT,
+                cursor::Goto(x, y + 1),
+                chars::DOUBLE_BORDER_VERT_LINE,
+                " ".repeat(dlg_w - 2),
+                chars::DOUBLE_BORDER_VERT_LINE,
+                cursor::Goto(x, y + 2),
+            ));
+            y += 2;
+
+            for i in 2..dlg_h - 2 {
+                y += 1;
+                let line = &msg_lines[i - 2];
+                let s = if line.starts_with(TEXT_ALIGN_CENTER) {
+                    let ll = &line[TEXT_ALIGN_CENTER.len()..];
+                    if ll.len() < dlg_w - 4 {
+                        format!("{:^width$}", ll, width = dlg_w - 4)
+                    } else {
+                        ll[0..dlg_w - 4].to_string()
+                    }
+                } else if line.starts_with(TEXT_ALIGN_RIGHT) {
+                    let ll = &line[TEXT_ALIGN_CENTER.len()..];
+                    if ll.len() < dlg_w - 4 {
+                        format!("{:>width$}", ll, width = dlg_w - 4)
+                    } else {
+                        ll[0..dlg_w - 4].to_string()
+                    }
+                } else {
+                    if line.len() < dlg_w - 4 {
+                        format!("{:width$}", &line, width = dlg_w - 4)
+                    } else {
+                        line[0..dlg_w - 4].to_string()
+                    }
+                };
+                res.push_str(&format!(
+                    "{} {} {}{}",
+                    chars::DOUBLE_BORDER_VERT_LINE,
+                    s,
+                    chars::DOUBLE_BORDER_VERT_LINE,
+                    cursor::Goto(x, y),
+                ));
+            }
+
+            res.push_str(&format!(
+                "{}{}{}{}{}{}{}",
+                chars::DOUBLE_BORDER_VERT_LINE,
+                " ".repeat(dlg_w - 2),
+                chars::DOUBLE_BORDER_VERT_LINE,
+                cursor::Goto(x, y + 1),
+                chars::DOUBLE_BORDER_BOTTOM_LEFT,
+                chars::DOUBLE_BORDER_HOR_LINE.to_string().repeat(dlg_w - 2),
+                chars::DOUBLE_BORDER_BOTTOM_RIGHT
+            ));
+            Some(res)
+        } else {
+            None
         }
     }
 

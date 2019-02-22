@@ -237,4 +237,16 @@ impl<R: Read, W: Write, L: InputListener<R, W>> Game<R, W, L> {
             board.update_cells(updates);
         }
     }
+
+    pub fn show_message(&mut self, lines: &[&str]) {
+        if let Some(ref mut board) = self.board {
+            board.show_message(lines);
+        }
+    }
+
+    pub fn hide_message(&mut self) {
+        if let Some(ref mut board) = self.board {
+            board.hide_message();
+        }
+    }
 }
