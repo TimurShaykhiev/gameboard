@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use unicode_segmentation::UnicodeSegmentation;
 use termion::{style, cursor, color};
 
 use crate::board::ResourceTable;
@@ -99,17 +100,17 @@ impl Cell {
         let mut is_csi = false;
         let mut y = y;
         let mut height = height;
-        for (i, ch) in content.chars().enumerate() {
-            if ch == CSI_SGR_START {
+        for (i, ch) in UnicodeSegmentation::grapheme_indices(content, true) {
+            if ch.as_bytes()[0] as char == CSI_SGR_START {
                 is_csi = true;
-            } else if is_csi && ch == CSI_SGR_END {
+            } else if is_csi && ch.as_bytes()[0] as char == CSI_SGR_END {
                 is_csi = false;
             } else if !is_csi {
                 ch_count += 1;
                 if ch_count == width {
-                    res.push_str(&content[line_start..i + 1]);
+                    res.push_str(&content[line_start..i + ch.len()]);
                     ch_count = 0;
-                    line_start = i + 1;
+                    line_start = i + ch.len();
                     y += 1;
                     height -= 1;
                     if height > 0 {

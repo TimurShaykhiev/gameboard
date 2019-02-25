@@ -9,6 +9,7 @@ use crate::chars;
 use crate::cell::Cell;
 use crate::cell_grid::CellGrid;
 use crate::cursor::{Cursor, KeyHandleResult};
+use crate::str_utils;
 
 const GOTO_SEQUENCE_WIDTH: usize = 16;
 const TEXT_ALIGN_CENTER: &'static str = "|^|";
@@ -74,7 +75,7 @@ impl Board {
     }
 
     pub fn init_from_str(&mut self, cells: &str, cursor: Option<Cursor>) {
-        if cells.len() != self.rows * self.columns {
+        if cells.chars().count() != self.rows * self.columns {
             panic!("Invalid number of cells.");
         }
         if self.cell_width != 1 && self.cell_height != 1 {
@@ -142,11 +143,14 @@ impl Board {
             res.push_str(&self.get_border());
         }
 
-        if update_all && self.cell_width == 1 && self.cell_height == 1 &&
-            !self.cell_borders {
+        if update_all && self.cell_width == 1 && self.cell_height == 1 && !self.cell_borders {
             // If we need to update all cells and board has 1x1 cells and no borders,
             // we can simplify the process.
-            for cell in self.grid.iter() {
+            for (i, cell) in self.grid.iter().enumerate() {
+                if i % self.columns == 0 {
+                    let (x, y) = self.get_cell_top_left(i);
+                    res.push_str(&format!("{}", cursor::Goto(x, y)));
+                }
                 cell.add_value_to_str(&mut res, Rc::clone(&self.resources));
             }
         } else if update_all {
@@ -203,7 +207,7 @@ impl Board {
 
     fn get_message_dialog(&self) -> Option<String> {
         if let Some(ref msg_lines) = self.message_lines {
-            let line_max_len = msg_lines.iter().map(|x| x.len()).max()
+            let line_max_len = msg_lines.iter().map(|x| str_utils::get_str_len(x)).max()
                     .expect("Message lines slice must not be empty.");
             // We want to have at least 1 character margin between border and text.
             // So 8 means: board border + margin + dialog border + margin, from both sides.
@@ -233,23 +237,23 @@ impl Board {
                 let line = &msg_lines[i - 2];
                 let s = if line.starts_with(TEXT_ALIGN_CENTER) {
                     let ll = &line[TEXT_ALIGN_CENTER.len()..];
-                    if ll.len() < dlg_w - 4 {
+                    if str_utils::get_str_len(ll) < dlg_w - 4 {
                         format!("{:^width$}", ll, width = dlg_w - 4)
                     } else {
-                        ll[0..dlg_w - 4].to_string()
+                        str_utils::get_str_range(ll, 0, dlg_w - 4).to_string()
                     }
                 } else if line.starts_with(TEXT_ALIGN_RIGHT) {
                     let ll = &line[TEXT_ALIGN_CENTER.len()..];
-                    if ll.len() < dlg_w - 4 {
+                    if str_utils::get_str_len(ll) < dlg_w - 4 {
                         format!("{:>width$}", ll, width = dlg_w - 4)
                     } else {
-                        ll[0..dlg_w - 4].to_string()
+                        str_utils::get_str_range(ll, 0, dlg_w - 4).to_string()
                     }
                 } else {
-                    if line.len() < dlg_w - 4 {
+                    if str_utils::get_str_len(line) < dlg_w - 4 {
                         format!("{:width$}", &line, width = dlg_w - 4)
                     } else {
-                        line[0..dlg_w - 4].to_string()
+                        str_utils::get_str_range(line, 0, dlg_w - 4).to_string()
                     }
                 };
                 res.push_str(&format!(
@@ -342,7 +346,7 @@ impl Board {
             self.cell_height
         };
         let x = start_x + (pos % self.columns) * step_x;
-        let y = start_y + (pos / self.rows) * step_y;
+        let y = start_y + (pos / self.columns) * step_y;
         (x as u16, y as u16)
     }
 }
