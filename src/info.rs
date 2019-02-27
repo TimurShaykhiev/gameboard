@@ -1,16 +1,24 @@
+//! Information area.
+
 use termion::{cursor};
 
 use crate::chars;
 use crate::game::Position;
 
+/// Information area layout.
 #[derive(Copy, Clone)]
 pub enum InfoLayout {
+    /// Info area at the left from the board.
     Left = 0,
+    /// Info area at the right from the board.
     Right,
+    /// Info area above the board.
     Top,
+    /// Info area below the board.
     Bottom,
 }
 
+/// Information area structure.
 pub struct Info {
     position: Position,
     width: usize,
@@ -20,6 +28,24 @@ pub struct Info {
 }
 
 impl Info {
+    /// Creates new information area.
+    ///
+    /// # Arguments
+    ///
+    /// `size` - information area size in characters. You need to set one dimension size only.
+    /// Another one will be taken from the board. For example, if layout is `InfoLayout::Left` then
+    /// info area will be at the left of the board and have the same height. `size` will be a
+    /// width of the info area.
+    ///
+    /// `layout` - information area layout
+    ///
+    /// # Examples
+    ///
+    /// Information area is above the board. It has height 15 and width the same as a board.
+    /// ```no_run
+    /// let board = Board::new(5, 5, 10, 5, true, None);
+    /// let info = Info::new(15, InfoLayout::Top);
+    /// ```
     pub fn new(size: usize, layout: InfoLayout) -> Self {
         Info {
             position: Position(1, 1),

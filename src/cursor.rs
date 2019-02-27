@@ -1,3 +1,9 @@
+//! Simple cursor implementation.
+//!
+//! You don't have to use this module. This implementation is very simple. Cursor handles 4 base
+//! movements and marks current position with background color. If you need more sophisticated
+//! cursor behavior, implement your own cursor.
+
 use termion::color;
 use termion::event::Key;
 
@@ -6,12 +12,17 @@ use crate::board::CellUpdates;
 use crate::cell_grid::CellGrid;
 use crate::game::Position;
 
+/// Result of handling key press be cursor.
 pub(crate) enum KeyHandleResult {
+    /// Key not handled.
     NotHandled,
+    /// Key handled, but position is not changed. No need to handle this key.
     Consumed,
+    /// Cursor is moved to new position.
     NewPosition(Position)
 }
 
+/// Cursor move direction.
 pub enum Direction {
     Left = 0,
     Right,
@@ -19,6 +30,7 @@ pub enum Direction {
     Down,
 }
 
+/// Cursor structure.
 pub struct Cursor {
     original_cell: Cell,
     background: color::Rgb,
@@ -30,6 +42,39 @@ pub struct Cursor {
 }
 
 impl Cursor {
+    /// Creates new cursor.
+    ///
+    /// # Arguments
+    ///
+    /// `background` - background color of the cell where cursor is placed. Use `termion::color`.
+    ///
+    /// `position` - cursor start position.
+    ///
+    /// `wrap_around` - should cursor be wrapped around or not.
+    ///
+    /// `get_direction` - pointer to key handler function (optional). This function should
+    /// translate key into cursor move direction. Function must return `None` if key is not
+    /// handled. If function isn't provided the default function is used.
+    /// ```
+    /// fn get_direction_default(key: Key) -> Option<Direction> {
+    ///     match key {
+    ///         Key::Char('a') | Key::Left => Some(Direction::Left),
+    ///         Key::Char('s') | Key::Down => Some(Direction::Down),
+    ///         Key::Char('w') | Key::Up => Some(Direction::Up),
+    ///         Key::Char('d') | Key::Right => Some(Direction::Right),
+    ///         _ => None,
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use termion::color;
+    ///
+    /// const START_POSITION: Position = Position(1, 1);
+    /// let cursor = Cursor::new(color::Rgb(0, 0, 200), START_POSITION, true, None);
+    /// ```
     pub fn new(background: color::Rgb, position: Position, wrap_around: bool,
                get_direction: Option<fn(key: Key) -> Option<Direction>>) -> Self {
         let fn_ptr = match get_direction {

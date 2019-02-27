@@ -1,3 +1,5 @@
+//! Board cell.
+
 use std::rc::Rc;
 
 use unicode_segmentation::UnicodeSegmentation;
@@ -8,15 +10,84 @@ use crate::board::ResourceTable;
 const RESOURCE_TABLE_ERR_MSG: &'static str =
     "If you use Cell::ResourceId, you must add resource table to Board.";
 
+/// Cell content.
 #[derive(Clone)]
 pub enum Cell {
+    /// Empty cell. It will be filled with spaces.
     Empty,
+    /// Resource id. Content is stored in [`ResourceTable`](../board/type.ResourceTable.html).
+    /// If you use this cell type, you must add resource table to board.
     ResourceId(u16),
+    /// Char (Unicode code point). If cell size is more than 1x1, the cell will be filled with
+    /// this character.
     Char(char),
+    /// Arbitrary string. String will be written into cell by rows.
+    ///
+    /// You can use [escape sequences]. Termion provides `termion::style` and `termion::color` for
+    /// this. You don't have to reset style at the end, it'll be done automatically.
+    ///
+    /// # Implementation note
+    ///
+    /// If you use [`Cursor`], do not use `termion::style::Reset` and `termion::color::Bg` inside
+    /// string. It will break cursor highlighting, because it uses `termion::color::Bg` as well
+    /// and they will overlap.
+    ///
+    /// [escape sequences]: https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_(Select_Graphic_Rendition)_parameters
+    /// [`Cursor`]: ../cursor/struct.Cursor.html
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use termion::{style, color};
+    ///
+    /// fn create_resources() -> ResourceTable {
+    ///     let mut res = ResourceTable::new();
+    ///     res.insert(0, String::from("  OO   O  O   OO  "));
+    ///     res.insert(1, String::from(" X  X   XX   X  X "));
+    ///     res
+    /// }
+    ///
+    /// let cursor = Cursor::new(color::Rgb(0, 0, 200), Position(0, 0), true, None);
+    /// let mut board = Board::new(3, 3, 6, 3, true, Some(create_resources()));
+    /// board.init_from_vec(
+    ///     &vec![
+    ///         Cell::Empty,
+    ///         Cell::ResourceId(0),
+    ///         Cell::ResourceId(1),
+    ///         Cell::Char('z'),
+    ///         Cell::Char('▒'),
+    ///         Cell::Content(
+    ///             format!("{}aaaaaaaa{}aaaaaaaaaa",
+    ///                     color::Fg(color::Red),
+    ///                     color::Fg(color::Blue))
+    ///         ),
+    ///         // this cell breaks cursor highlighting
+    ///         Cell::Content(
+    ///             format!("{}bbb{}bbbbb{}bbbb{}bbb{}bbb",
+    ///                     color::Fg(color::Red),
+    ///                     style::Bold,
+    ///                     style::Reset,
+    ///                     color::Fg(color::Blue),
+    ///                     style::Reset)
+    ///         ),
+    ///         // this cell breaks cursor highlighting
+    ///         Cell::Content(
+    ///             format!("{}cccccccccccc{}cccccc",
+    ///                     color::Bg(color::Red),
+    ///                     style::Reset)
+    ///         ),
+    ///         Cell::Content(
+    ///             format!("{}dddddddd{}dddddddddd",
+    ///                     color::Fg(color::Red),
+    ///                     style::Bold)
+    ///         )],
+    ///     Some(cursor));
+    /// ```
     Content(String),
 }
 
 impl Cell {
+    // Add cell content to string.
     pub(crate) fn add_value_to_str(&self, dst: &mut String,
                                    resources: Rc<Option<ResourceTable>>) {
         match self {
@@ -34,6 +105,7 @@ impl Cell {
         };
     }
 
+    // Get formatted cell content ready to display in terminal.
     pub(crate) fn get_content(&self, width: usize, height: usize, x: u16, y: u16,
                               resources: Rc<Option<ResourceTable>>) -> String {
         match self {
@@ -51,6 +123,7 @@ impl Cell {
         }
     }
 
+    // Create new cell from this one by adding background color. Used by Cursor.
     pub(crate) fn with_bg_color(&self, width: usize, height: usize,
                                 resources: Rc<Option<ResourceTable>>,
                                 bg_color: color::Rgb) -> Cell {

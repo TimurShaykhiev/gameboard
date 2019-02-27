@@ -1,3 +1,5 @@
+//! Game board.
+
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -15,12 +17,23 @@ const GOTO_SEQUENCE_WIDTH: usize = 16;
 const TEXT_ALIGN_CENTER: &'static str = "|^|";
 const TEXT_ALIGN_RIGHT: &'static str = "|>|";
 
+/// Resources for cell content.
+///
+/// This can be useful when board has a lot of cells with the same content.
 pub type ResourceTable = HashMap<u16, String>;
+
+/// Cell updates array.
+///
+/// Each array element is a tuple of cell content and cell position.
 pub type CellUpdates = Vec<(Cell, Position)>;
 
+/// Board structure.
 pub struct Board {
+    /// Board top left position.
     position: Position,
+    /// Total board width in characters (with borders).
     width: usize,
+    /// Total board height in characters (with borders).
     height: usize,
     rows: usize,
     columns: usize,
@@ -31,10 +44,39 @@ pub struct Board {
     resources: Rc<Option<ResourceTable>>,
     cursor: Option<Cursor>,
     message_lines: Option<Vec<String>>,
+    /// Need to redraw all cells and borders (for example, after message dialog was closed).
     update_all: bool,
 }
 
 impl Board {
+    /// Creates new board.
+    ///
+    /// # Arguments
+    ///
+    /// `width` - horizontal number of cells (number of columns)
+    ///
+    /// `height` - vertical number of cells (number of rows)
+    ///
+    /// `cell_width` - cell width in characters
+    ///
+    /// `cell_height` - cell height in characters
+    ///
+    /// `cell_borders` - if `true` show cell borders
+    ///
+    /// `resources` - resource table (optional)
+    ///
+    /// # Examples
+    ///
+    /// A board for 3x3 tic-tac-toe game. Cell has 10x5 size to look square in terminal.
+    /// ```no_run
+    /// fn create_resources() -> ResourceTable {
+    ///     let mut res = ResourceTable::new();
+    ///     res.insert(0, String::from("    OOO      O   O    O     O    O   O      OOO   "));
+    ///     res.insert(1, String::from("   X   X      X X        X        X X      X   X  "));
+    ///     res
+    /// }
+    /// let mut board = Board::new(3, 3, 10, 5, true, Some(create_resources()));
+    /// ```
     pub fn new(width: usize, height: usize, cell_width: usize, cell_height: usize,
                cell_borders: bool, resources: Option<ResourceTable>) -> Self {
         let mut w_borders = 2;
@@ -66,6 +108,21 @@ impl Board {
         }
     }
 
+    /// Initializes board with cells and cursor (optional).
+    ///
+    /// The cells will be filled from vector by rows.
+    ///
+    /// # Panics
+    ///
+    /// Panics `cells` contain wrong number of elements.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// let mut board = Board::new(2, 2, 1, 1, false, None));
+    /// board.init_from_vec(&vec![Cell::Empty, Cell::Char('x'), Cell::Empty, Cell::Char('o')],
+    ///                     None);
+    /// ```
     pub fn init_from_vec(&mut self, cells: &Vec<Cell>, cursor: Option<Cursor>) {
         if cells.len() != self.rows * self.columns {
             panic!("Invalid number of cells.");
@@ -74,6 +131,39 @@ impl Board {
         self.add_cursor(cursor);
     }
 
+    /// Initializes board with cells and cursor (optional).
+    ///
+    /// The cells will be filled from string by rows.
+    ///
+    /// This is an additional initialization method. It might be useful if board has 1x1 cells and
+    /// all cells contain 1 character without styling.
+    ///
+    /// # Implementation note
+    ///
+    /// We iterate string using `chars()` method, it iterates through Unicode code points. Do not
+    /// use Unicode symbols which consist of more than 1 code points.
+    ///
+    /// # Panics
+    ///
+    /// Panics `cells` contain wrong number of elements.
+    ///
+    /// Panics if cell size is not 1x1.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// let mut board = Board::new(4, 4, 1, 1, false, None));
+    /// board.init_from_str(&"x    o    x    o", None);
+    /// ```
+    /// The following code does the same.
+    /// ```no_run
+    /// let mut board = Board::new(4, 4, 1, 1, false, None));
+    /// board.init_from_vec(&vec![Cell::Char('x'), Cell::Empty, Cell::Empty, Cell::Empty,
+    ///                           Cell::Empty, Cell::Char('o'), Cell::Empty, Cell::Empty,
+    ///                           Cell::Empty, Cell::Empty, Cell::Char('x'), Cell::Empty,
+    ///                           Cell::Empty, Cell::Empty, Cell::Empty, Cell::Char('o')],
+    ///                     None);
+    /// ```
     pub fn init_from_str(&mut self, cells: &str, cursor: Option<Cursor>) {
         if cells.chars().count() != self.rows * self.columns {
             panic!("Invalid number of cells.");
