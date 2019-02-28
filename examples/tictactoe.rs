@@ -39,7 +39,6 @@ struct App {
     cursor_position: Position,
     board: [u8; 9],
     turn_num: u8,
-    game_over: bool,
     result: GameResult,
     exit: bool
 }
@@ -62,7 +61,7 @@ impl<R: Read, W: Write> InputListener<R, W> for App {
                 if let Some(updates) = self.process_user_turn() {
                     game.update_cells(updates);
                 }
-                if self.game_over {
+                if self.result != GameResult::Unknown {
                     let game_res = if self.result == GameResult::HumanWin {
                         TEXT_GAME_RESULT_WIN
                     } else if self.result == GameResult::ComputerWin {
@@ -93,7 +92,6 @@ impl App {
             cursor_position: START_POSITION,
             board: [CELL_EMPTY; 9],
             turn_num: 0,
-            game_over: false,
             result: GameResult::Unknown,
             exit: false,
         }
@@ -103,7 +101,6 @@ impl App {
         self.cursor_position = START_POSITION;
         self.board = [CELL_EMPTY; 9];
         self.turn_num = 0;
-        self.game_over = false;
         self.result = GameResult::Unknown;
     }
 
@@ -116,10 +113,8 @@ impl App {
             updates.push((Cell::ResourceId(1), Position(x, y)));
 
             if self.is_user_win() {
-                self.game_over = true;
                 self.result = GameResult::HumanWin;
             } else if !self.is_empty_cells() {
-                self.game_over = true;
                 self.result = GameResult::Draw;
             } else {
                 // Computer makes turn.
@@ -136,7 +131,6 @@ impl App {
         if let Some(pos) = self.find_two_in_line(CELL_O) {
             // Check if we can win. Finish game if we can.
             new_pos = pos;
-            self.game_over = true;
             self.result = GameResult::ComputerWin;
         } else if let Some(pos) = self.find_two_in_line(CELL_X) {
             // Check if user can win. Don't let user win.
