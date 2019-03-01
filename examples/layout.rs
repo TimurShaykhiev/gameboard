@@ -34,7 +34,7 @@ fn main() {
     let app = Rc::new(RefCell::new(App {}));
 
     let board = Board::new(5, 5, 10, 5, true, None);
-    let info = Info::new(15, InfoLayout::Top);
+    let info = Info::new(15, InfoLayout::Top, &Vec::new());
     let game = Rc::new(RefCell::new(Game::new(stdin, stdout, Rc::clone(&app))));
     game.borrow_mut().init(board, Some(info));
     game.borrow_mut().start();

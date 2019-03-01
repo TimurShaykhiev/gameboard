@@ -384,6 +384,24 @@ impl<R: Read, W: Write, L: InputListener<R, W>> Game<R, W, L> {
         }
     }
 
+    /// Updates information area content.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// game.update_info(&[
+    ///     "This is line 1.",
+    ///     "",
+    ///     "This is line 3.",
+    ///     "This is line 4.",
+    /// ]);
+    /// ```
+    pub fn update_info(&mut self, lines: &[&str]) {
+        if let Some(ref mut info) = self.info {
+            info.update(lines);
+        }
+    }
+
     /// Shows message dialog.
     ///
     /// This dialog can be used to ask user a questions. This dialog is modal. You can't update

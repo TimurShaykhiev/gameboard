@@ -22,6 +22,12 @@ const MINE: char = '*';
 const FLAG: char = 'F';
 const CONCEALED: char = '▒';
 
+const TEXT_WIN: &'static str = "You WIN";
+const TEXT_LOSE: &'static str = "You LOSE";
+const TEXT_BOMBS_LEFT: &'static str = "Bombs left";
+const TEXT_KEYS: &'static str = "Move: asdw/arrows. Open: j. Flag: i. Exit: q.";
+const TEXT_REPLAY: &'static str = "Press r to replay. Press q to exit game.";
+
 #[derive(PartialEq, Eq)]
 enum GameResult {
     Unknown = 0,
@@ -54,6 +60,20 @@ impl<R: Read, W: Write> InputListener<R, W> for App {
                 if self.result == GameResult::Unknown {
                     if let Some(updates) = self.set_flag() {
                         game.update_cells(updates);
+
+                        let bomb_left = if self.flags <= BOMB_TOTAL {
+                            BOMB_TOTAL - self.flags
+                        } else {
+                            0
+                        };
+                        game.update_info(&[
+                            "",
+                            &format!("{:^width$}",
+                                     &format!("{} {}", TEXT_BOMBS_LEFT, bomb_left),
+                                     width = FIELD_WIDTH),
+                            "",
+                            &format!("{:^width$}", TEXT_KEYS, width = FIELD_WIDTH),
+                        ]);
                     }
                 }
             },
@@ -62,7 +82,19 @@ impl<R: Read, W: Write> InputListener<R, W> for App {
                     if let Some(updates) = self.reveal() {
                         game.update_cells(updates);
                     }
-                    //if self.result != GameResult::Unknown {}
+                    if self.result != GameResult::Unknown {
+                        let s = if self.result == GameResult::Win {
+                            TEXT_WIN
+                        } else {
+                            TEXT_LOSE
+                        };
+                        game.update_info(&[
+                            "",
+                            &format!("{:^width$}", &s, width = FIELD_WIDTH),
+                            "",
+                            &format!("{:^width$}", TEXT_REPLAY, width = FIELD_WIDTH),
+                        ]);
+                    }
                 }
             },
             _ => {}
@@ -248,7 +280,13 @@ fn main() {
         app.borrow_mut().reset();
         let cursor = Cursor::new(color::Rgb(0, 0, 255), START_POSITION, false, None);
         let mut board = Board::new(FIELD_WIDTH, FIELD_HEIGHT, 1, 1, false, None);
-        let info = Info::new(5, InfoLayout::Top);
+        let info = Info::new(6, InfoLayout::Top, &[
+            "",
+            &format!("{:^width$}",
+                     &format!("{} {}", TEXT_BOMBS_LEFT, BOMB_TOTAL), width = FIELD_WIDTH),
+            "",
+            &format!("{:^width$}", TEXT_KEYS, width = FIELD_WIDTH),
+        ]);
         board.init_from_str(&CONCEALED.to_string().repeat(FIELD_WIDTH * FIELD_HEIGHT),
                             Some(cursor));
         game.borrow_mut().init(board, Some(info));

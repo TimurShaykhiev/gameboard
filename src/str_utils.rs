@@ -1,5 +1,7 @@
 use unicode_segmentation::UnicodeSegmentation;
 
+pub(crate) const GOTO_SEQUENCE_WIDTH: usize = 16;
+
 pub(crate) fn get_str_range(text: &str, start: usize, end: usize) -> &str {
     let mut iter = UnicodeSegmentation::grapheme_indices(text, true);
     let (s, _) = iter.nth(start).expect("Invalid string range index.");

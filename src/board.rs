@@ -13,7 +13,6 @@ use crate::cell_grid::CellGrid;
 use crate::cursor::{Cursor, KeyHandleResult};
 use crate::str_utils;
 
-const GOTO_SEQUENCE_WIDTH: usize = 16;
 const TEXT_ALIGN_CENTER: &'static str = "|^|";
 const TEXT_ALIGN_RIGHT: &'static str = "|>|";
 
@@ -197,7 +196,8 @@ impl Board {
     pub(crate) fn get_border(&self) -> String {
         let mut y = self.position.1 as u16;
         // Add chars to row width for Goto sequences
-        let mut res = String::with_capacity((self.width + GOTO_SEQUENCE_WIDTH) * self.height);
+        let mut res =
+            String::with_capacity((self.width + str_utils::GOTO_SEQUENCE_WIDTH) * self.height);
 
         for h in 0..self.height {
             res.push_str(&format!("{}", cursor::Goto(self.position.0 as u16, y)));
@@ -307,7 +307,7 @@ impl Board {
             let x = (self.position.0 + (self.width - dlg_w) / 2) as u16;
             let mut y = (self.position.1 + (self.height - dlg_h) / 2) as u16;
 
-            let mut res = String::with_capacity((dlg_w + GOTO_SEQUENCE_WIDTH) * dlg_h);
+            let mut res = String::with_capacity((dlg_w + str_utils::GOTO_SEQUENCE_WIDTH) * dlg_h);
             res.push_str(&format!(
                 "{}{}{}{}{}{}{}{}{}",
                 cursor::Goto(x, y),
