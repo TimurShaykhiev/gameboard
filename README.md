@@ -1,5 +1,9 @@
 # gameboard
 
+[![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![crates.io](https://img.shields.io/crates/v/gameboard.svg)](https://crates.io/crates/gameboard)
+[![Docs](https://docs.rs/gameboard/badge.svg)](https://docs.rs/gameboard)
+
 Rust library for creating game board for text UI games. Gameboard draws board in the terminal screen, updates cells, 
 handles user IO and allows you to concentrate on the game logic. It can be used for classic table games with board with
 cell: tic-tac-toe, scrabble, sudoku, or for any text UI game where you can implement game field as a cell board.
@@ -50,4 +54,4 @@ fn main() {
 [Here](./examples) you can see more examples of usage.
 
 ## License
-This project is licensed under the terms of the [MIT](LICENSE) license.
+This project is licensed under the terms of the [MIT](./LICENSE) license.
