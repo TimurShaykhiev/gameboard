@@ -1,7 +1,11 @@
 [package]
 name = "gameboard"
 version = "0.1.0"
-description = "A library to create game board for text UI games."
+description = "Rust library for creating game board for text UI games."
+documentation = "https://docs.rs/gameboard"
+repository = "https://github.com/TimurShaykhiev/gameboard"
+keywords = ["game", "engine", "textUI"]
+categories = ["game-engines"]
 readme = "README.md"
 license = "MIT"
 authors = ["Timur Shaykhiev <tshaykhiev@gmail.com>"]
